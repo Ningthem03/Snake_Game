@@ -1,72 +1,132 @@
 #include <iostream>
 #include <conio.h>   // for _kbhit() and _getch()
 #include <windows.h> // for Sleep()
+#include <vector>
+#include <cstdlib>
 using namespace std;
 
+// Base class for all game objects
+class GameObject {
+protected:
+    int x, y;
+public:
+    GameObject(int x=0, int y=0) : x(x), y(y) {}
+    virtual void draw() = 0; // pure virtual
+    int getX() const { return x; }
+    int getY() const { return y; }
+    void setPosition(int newX, int newY) { x = newX; y = newY; }
+};
+
+// Snake part (head/tail)
+class SnakePart : public GameObject {
+public:
+    SnakePart(int x=0, int y=0) : GameObject(x,y) {}
+    void draw() override { cout << "o"; }
+};
+
+// Base fruit class
+class Fruit : public GameObject {
+protected:
+    int points;
+public:
+    Fruit(int x=0, int y=0, int p=10) : GameObject(x,y), points(p) {}
+    virtual void draw() override { cout << "F"; }
+    int getPoints() const { return points; }
+};
+
+// Different fruit types
+class Apple : public Fruit {
+public:
+    Apple(int x=0, int y=0) : Fruit(x,y,10) {}
+    void draw() override { cout << "A"; }
+};
+
+class Banana : public Fruit {
+public:
+    Banana(int x=0, int y=0) : Fruit(x,y,20) {}
+    void draw() override { cout << "B"; }
+};
+
+class Cherry : public Fruit {
+public:
+    Cherry(int x=0, int y=0) : Fruit(x,y,30) {}
+    void draw() override { cout << "C"; }
+};
+
+// SnakeGame class
 class SnakeGame {
 private:
     bool gameOver;
-    const int width = 20;
-    const int height = 20;
-    int x, y;          // snake head position
-    int fruitX, fruitY;
+    const int width = 20, height = 20;
+    GameObject* head;
+    vector<SnakePart> tail;
+    Fruit* fruit;
     int score;
-    int tailX[100], tailY[100];
-    int nTail;
-    enum eDirection { STOP = 0, LEFT, RIGHT, UP, DOWN };
+    enum eDirection { STOP=0, LEFT, RIGHT, UP, DOWN };
     eDirection dir;
 
 public:
     SnakeGame() {
+        head = new SnakePart(width/2, height/2);
+        fruit = nullptr;
         setup();
+    }
+
+    ~SnakeGame() {
+        delete head;
+        delete fruit;
     }
 
     void setup() {
         gameOver = false;
         dir = STOP;
-        x = width / 2;
-        y = height / 2;
-        fruitX = rand() % width;
-        fruitY = rand() % height;
         score = 0;
-        nTail = 0;
+        tail.clear();
+        spawnFruit();
+    }
+
+    void spawnFruit() {
+        if (fruit) delete fruit;
+        int choice = rand() % 3;
+        int fx = rand() % width;
+        int fy = rand() % height;
+        if (choice == 0) fruit = new Apple(fx, fy);
+        else if (choice == 1) fruit = new Banana(fx, fy);
+        else fruit = new Cherry(fx, fy);
     }
 
     void draw() {
-        system("cls"); // clear console
-
-        // Top wall
-        for (int i = 0; i < width+2; i++) cout << "#";
+        system("cls");
+        for (int i=0; i<width+2; i++) cout << "#";
         cout << endl;
 
-        for (int i = 0; i < height; i++) {
-            for (int j = 0; j < width; j++) {
-                if (j == 0) cout << "#"; // left wall
+        for (int i=0; i<height; i++) {
+            for (int j=0; j<width; j++) {
+                if (j==0) cout << "#";
 
-                if (i == y && j == x)
-                    cout << "O"; // snake head
-                else if (i == fruitY && j == fruitX)
-                    cout << "F"; // fruit
+                if (i == head->getY() && j == head->getX())
+                    cout << "O";
+                else if (i == fruit->getY() && j == fruit->getX())
+                    fruit->draw();
                 else {
-                    bool print = false;
-                    for (int k = 0; k < nTail; k++) {
-                        if (tailX[k] == j && tailY[k] == i) {
-                            cout << "o"; // snake tail
-                            print = true;
+                    bool printed = false;
+                    for (auto &t : tail) {
+                        if (t.getX()==j && t.getY()==i) {
+                            t.draw();
+                            printed = true;
+                            break;
                         }
                     }
-                    if (!print) cout << " ";
+                    if (!printed) cout << " ";
                 }
 
-                if (j == width-1) cout << "#"; // right wall
+                if (j==width-1) cout << "#";
             }
             cout << endl;
         }
 
-        // Bottom wall
-        for (int i = 0; i < width+2; i++) cout << "#";
+        for (int i=0; i<width+2; i++) cout << "#";
         cout << endl;
-
         cout << "Score: " << score << endl;
     }
 
@@ -83,43 +143,41 @@ public:
     }
 
     void logic() {
-        int prevX = tailX[0];
-        int prevY = tailY[0];
+        // Move tail
+        int prevX = head->getX();
+        int prevY = head->getY();
         int prev2X, prev2Y;
-        tailX[0] = x;
-        tailY[0] = y;
-        for (int i = 1; i < nTail; i++) {
-            prev2X = tailX[i];
-            prev2Y = tailY[i];
-            tailX[i] = prevX;
-            tailY[i] = prevY;
+        for (size_t i=0; i<tail.size(); i++) {
+            prev2X = tail[i].getX();
+            prev2Y = tail[i].getY();
+            tail[i].setPosition(prevX, prevY);
             prevX = prev2X;
             prevY = prev2Y;
         }
 
+        // Move head
         switch (dir) {
-            case LEFT:  x--; break;
-            case RIGHT: x++; break;
-            case UP:    y--; break;
-            case DOWN:  y++; break;
+            case LEFT:  head->setPosition(head->getX()-1, head->getY()); break;
+            case RIGHT: head->setPosition(head->getX()+1, head->getY()); break;
+            case UP:    head->setPosition(head->getX(), head->getY()-1); break;
+            case DOWN:  head->setPosition(head->getX(), head->getY()+1); break;
             default: break;
         }
 
         // Collision with walls
-        if (x >= width || x < 0 || y >= height || y < 0)
+        if (head->getX() >= width || head->getX() < 0 || head->getY() >= height || head->getY() < 0)
             gameOver = true;
 
         // Collision with tail
-        for (int i = 0; i < nTail; i++)
-            if (tailX[i] == x && tailY[i] == y)
+        for (auto &t : tail)
+            if (t.getX() == head->getX() && t.getY() == head->getY())
                 gameOver = true;
 
         // Eating fruit
-        if (x == fruitX && y == fruitY) {
-            score += 10;
-            fruitX = rand() % width;
-            fruitY = rand() % height;
-            nTail++;
+        if (head->getX() == fruit->getX() && head->getY() == fruit->getY()) {
+            score += fruit->getPoints();
+            tail.push_back(SnakePart());
+            spawnFruit();
         }
     }
 
@@ -128,7 +186,7 @@ public:
             draw();
             input();
             logic();
-            Sleep(100); // control speed
+            Sleep(100);
         }
         cout << "Game Over! Final Score: " << score << endl;
     }
