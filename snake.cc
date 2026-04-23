@@ -133,11 +133,11 @@ public:
     void input() {
         if (_kbhit()) {
             switch (_getch()) {
-                case 'a': dir = LEFT; break;
-                case 'd': dir = RIGHT; break;
-                case 'w': dir = UP; break;
-                case 's': dir = DOWN; break;
-                case 'x': gameOver = true; break;
+                case 'a': case 'A': dir = LEFT; break;
+                case 'd': case 'D': dir = RIGHT; break;
+                case 'w': case 'W': dir = UP; break;
+                case 's': case 'S': dir = DOWN; break;
+                case 'x': case 'X': gameOver = true; break;
             }
         }
     }
