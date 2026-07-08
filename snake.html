@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐍 Snake</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E🐍%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --shell:#c9c5bc;
+    --shell-dark:#b3afa6;
+    --bezel:#47454f;
+    --lcd:#9bbc0f;
+    --lcd-ink:#0f380f;
+    --brand:#33356e;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;
+    background:#26282b;
+    color:var(--lcd-ink);
+    display:flex;align-items:center;justify-content:center;
+    min-height:100%;padding:16px;
+  }
+
+  /* ---- The device shell ---- */
+  .gameboy{
+    width:min(94vw,400px);
+    background:var(--shell);
+    border-radius:16px 16px 58px 16px;
+    padding:16px 16px 20px;
+    box-shadow:0 20px 44px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.6),inset 0 -3px 6px rgba(0,0,0,.1);
+    border-top:1px solid rgba(255,255,255,.5);
+  }
+
+  /* ---- Screen bezel ---- */
+  .gb-screen{
+    background:var(--bezel);
+    border-radius:12px 12px 34px 12px;
+    padding:22px 22px 16px;
+  }
+  .gb-stripes{margin:-6px -8px 14px;}
+  .gb-stripes i{display:block;height:3px;}
+  .gb-stripes i:first-child{background:#8a1f52;}
+  .gb-stripes i:last-child{background:#20276e;margin-top:2px;}
+
+  /* ---- The LCD ---- */
+  .stage{
+    position:relative;
+    background:var(--lcd);
+    border-radius:4px;
+    overflow:hidden;
+  }
+  .lcd-hud{
+    position:relative;z-index:2;
+    display:flex;justify-content:space-between;gap:6px;
+    padding:5px 8px 3px;
+    font-family:"Courier New",monospace;font-weight:700;font-size:12px;
+    letter-spacing:1px;color:var(--lcd-ink);
+  }
+  .lcd-hud b{font-weight:800;}
+  canvas{
+    display:block;width:100%;height:auto;
+    image-rendering:pixelated;
+    position:relative;z-index:1;
+  }
+  /* faint LCD scanlines */
+  .stage::after{
+    content:"";position:absolute;inset:0;z-index:3;pointer-events:none;
+    background:repeating-linear-gradient(0deg,rgba(15,56,15,.07) 0 1px,transparent 1px 3px);
+    mix-blend-mode:multiply;
+  }
+
+  .gb-caption{
+    display:flex;align-items:center;justify-content:center;gap:9px;
+    margin-top:12px;color:#c3bfd0;font-size:9px;letter-spacing:2px;
+  }
+  .led{width:8px;height:8px;border-radius:50%;background:#d3352b;}
+
+  /* ---- Brand / game logo ---- */
+  .gb-brand{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    margin:14px 0 6px;
+  }
+  .gb-brand .logo-emoji{font-size:23px;line-height:1;}
+  .gb-brand b{font-size:23px;font-style:italic;font-weight:800;letter-spacing:2px;color:#2f6f3f;}
+  .gb-brand small{
+    font-size:9px;font-weight:700;letter-spacing:2px;color:#8a877f;
+    align-self:flex-end;margin-bottom:4px;
+  }
+
+  /* ---- Overlays (menu / pause / game over) as LCD screens ---- */
+  .overlay{
+    position:absolute;inset:0;z-index:5;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:12px;text-align:center;padding:16px;
+    background:rgba(155,188,15,.95);color:var(--lcd-ink);
+    font-family:"Courier New",monospace;
+  }
+  .overlay.hidden{display:none;}
+  .lcd-title{font-size:26px;font-weight:800;letter-spacing:3px;}
+  .overlay p{margin:0;font-size:12px;letter-spacing:1px;}
+  .lcd-legend{font-size:10px;letter-spacing:1px;line-height:1.6;}
+  .badge{
+    background:var(--lcd-ink);color:var(--lcd);
+    font-weight:800;padding:3px 10px;font-size:11px;letter-spacing:2px;
+  }
+  .btn{
+    font-family:"Courier New",monospace;font-weight:800;letter-spacing:2px;font-size:13px;
+    background:var(--lcd-ink);color:var(--lcd);
+    border:0;padding:9px 18px;border-radius:4px;cursor:pointer;
+  }
+  .btn:active{background:#306230;}
+  .btn.ghost{background:transparent;color:var(--lcd-ink);border:2px solid var(--lcd-ink);padding:7px 16px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+  .diff{display:flex;gap:4px;}
+  .diff button{
+    font-family:"Courier New",monospace;font-weight:700;font-size:11px;letter-spacing:1px;
+    background:transparent;color:var(--lcd-ink);border:2px solid var(--lcd-ink);
+    padding:6px 10px;cursor:pointer;
+  }
+  .diff button.active{background:var(--lcd-ink);color:var(--lcd);}
+
+  /* ---- Physical controls ---- */
+  .gb-controls{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:2px 4px 0;margin-top:2px;
+  }
+  .dpad{position:relative;width:92px;height:92px;}
+  .dbtn{position:absolute;background:#26262b;border:0;cursor:pointer;color:#c9c5bc;}
+  .dbtn:active{background:#3a3a44;}
+  .dbtn.up{left:31px;top:0;width:30px;height:34px;border-radius:6px 6px 0 0;}
+  .dbtn.down{left:31px;bottom:0;width:30px;height:34px;border-radius:0 0 6px 6px;}
+  .dbtn.left{left:0;top:31px;width:34px;height:30px;border-radius:6px 0 0 6px;}
+  .dbtn.right{right:0;top:31px;width:34px;height:30px;border-radius:0 6px 6px 0;}
+  .dcenter{position:absolute;left:31px;top:31px;width:30px;height:30px;background:#26262b;}
+  .dcenter::after{content:"";position:absolute;inset:9px;border-radius:50%;background:#1c1c20;}
+
+  .ab{display:flex;gap:14px;align-items:center;transform:rotate(-22deg);}
+  .round{
+    width:46px;height:46px;border-radius:50%;
+    background:#8e2b58;color:#f3d7e5;border:0;
+    font-weight:800;font-size:15px;cursor:pointer;
+  }
+  .round:active{background:#742046;}
+  .round b{display:block;}
+
+  .gb-startselect{display:flex;gap:20px;justify-content:center;transform:rotate(-22deg);margin:10px 0 4px;}
+  .pill-btn{
+    background:#3f3d47;color:#d8d4e0;border:0;border-radius:10px;
+    padding:5px 14px;font-size:10px;font-weight:700;letter-spacing:1px;cursor:pointer;
+  }
+  .pill-btn:active{background:#565462;}
+
+  .gb-speaker{
+    height:34px;margin:8px 6px 0 auto;width:78px;
+    background:repeating-linear-gradient(118deg,var(--shell-dark) 0 3px,transparent 3px 8px);
+    border-radius:6px;opacity:.8;
+  }
+
+  footer{margin-top:10px;text-align:center;color:#8f8b83;font-size:10px;letter-spacing:.5px;}
+</style>
+</head>
+<body>
+  <div class="gameboy">
+
+    <div class="gb-screen">
+      <div class="gb-stripes"><i></i><i></i></div>
+
+      <div class="stage">
+        <div class="lcd-hud">
+          <span>SCORE <b id="scoreVal">0</b></span>
+          <span>FRT <b id="fruitVal">—</b></span>
+          <span>HI <b id="bestVal">0</b></span>
+        </div>
+
+        <canvas id="board" width="520" height="520"></canvas>
+
+        <!-- Start menu -->
+        <div class="overlay" id="menu">
+          <div class="lcd-title"><span class="logo-emoji">🐍</span> SNAKE</div>
+          <p>EAT · GROW · SURVIVE</p>
+          <div class="lcd-legend">APPLE +10 &nbsp; BANANA +20 &nbsp; CHERRY +30</div>
+          <div class="diff" id="diffPicker">
+            <button data-diff="easy">EASY</button>
+            <button data-diff="medium" class="active">NORMAL</button>
+            <button data-diff="hard">HARD</button>
+          </div>
+          <button class="btn" id="playBtn">&#9654; PLAY</button>
+        </div>
+
+        <!-- Pause -->
+        <div class="overlay hidden" id="pause">
+          <div class="lcd-title">PAUSED</div>
+          <button class="btn" id="resumeBtn">RESUME</button>
+          <button class="btn ghost" id="pauseMenuBtn">MENU</button>
+        </div>
+
+        <!-- Game over -->
+        <div class="overlay hidden" id="gameover">
+          <div id="newHigh" class="badge" style="display:none">NEW HI-SCORE!</div>
+          <div class="lcd-title" id="goTitle">GAME OVER</div>
+          <p>SCORE <b id="finalScore">0</b></p>
+          <div class="row">
+            <button class="btn" id="restartBtn">&#8635; RETRY</button>
+            <button class="btn ghost" id="goMenuBtn">MENU</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="gb-caption"><span class="led"></span>DOT-MATRIX DISPLAY</div>
+    </div>
+
+    <div class="gb-brand"><span class="logo-emoji">🐍</span><b>SNAKE</b><small>MINI</small></div>
+
+    <div class="gb-controls">
+      <div class="dpad">
+        <button id="dpadUp" class="dbtn up" type="button">&#9650;</button>
+        <button id="dpadLeft" class="dbtn left" type="button">&#9664;</button>
+        <span class="dcenter"></span>
+        <button id="dpadRight" class="dbtn right" type="button">&#9654;</button>
+        <button id="dpadDown" class="dbtn down" type="button">&#9660;</button>
+      </div>
+      <div class="ab">
+        <button id="btnB" class="round" type="button"><b>B</b></button>
+        <button id="btnA" class="round" type="button"><b>A</b></button>
+      </div>
+    </div>
+
+    <div class="gb-startselect">
+      <button id="btnSelect" class="pill-btn" type="button">SELECT</button>
+      <button id="btnStart" class="pill-btn" type="button">START</button>
+    </div>
+
+    <div class="gb-speaker"></div>
+
+    <footer>Keys: WASD / Arrows · Space pause · Enter start</footer>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---- Configuration --------------------------------------------------------
+  const GRID = 20;
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const CELL = canvas.width / GRID;
+
+  // classic Game Boy (DMG) monochrome palette
+  const GB = { bg:'#9bbc0f', grid:'rgba(15,56,15,0.08)', ink:'#0f380f' };
+
+  const FRUITS = [
+    { name:'Apple',  points:10 },
+    { name:'Banana', points:20 },
+    { name:'Cherry', points:30 },
+  ];
+
+  const DIFF = {
+    easy:   { base:140, min:95 },
+    medium: { base:100, min:65 },
+    hard:   { base:70,  min:45 },
+  };
+
+  // ---- State ----------------------------------------------------------------
+  let snake, dir, inputQueue, fruit, score, difficulty, gameState, highScore;
+  let acc = 0, lastTime = 0;
+
+  const els = {
+    score: document.getElementById('scoreVal'),
+    fruit: document.getElementById('fruitVal'),
+    best:  document.getElementById('bestVal'),
+    menu:  document.getElementById('menu'),
+    pause: document.getElementById('pause'),
+    gameover: document.getElementById('gameover'),
+    finalScore: document.getElementById('finalScore'),
+    newHigh: document.getElementById('newHigh'),
+    goTitle: document.getElementById('goTitle'),
+  };
+
+  highScore = parseInt(localStorage.getItem('snakeHighScore') || '0', 10) || 0;
+  difficulty = localStorage.getItem('snakeDifficulty') || 'medium';
+
+  // ---- Helpers --------------------------------------------------------------
+  function currentInterval(){
+    const d = DIFF[difficulty];
+    const speedup = Math.min(d.base - d.min, Math.floor(score / 50) * 4);
+    return d.base - speedup;
+  }
+
+  function resetGame(){
+    const mid = Math.floor(GRID / 2);
+    snake = [{ x:mid, y:mid }];
+    dir = { x:0, y:0 };
+    inputQueue = [];
+    score = 0;
+    acc = 0;
+    spawnFruit();
+    syncHud();
+  }
+
+  function spawnFruit(){
+    const occupied = new Set(snake.map(s => s.x + ',' + s.y));
+    const free = [];
+    for(let y=0;y<GRID;y++){
+      for(let x=0;x<GRID;x++){
+        if(!occupied.has(x + ',' + y)) free.push({ x, y });
+      }
+    }
+    if(free.length === 0){ endGame(true); return; }
+    const cell = free[(Math.random() * free.length) | 0];
+    fruit = { x:cell.x, y:cell.y, type:(Math.random() * FRUITS.length) | 0 };
+  }
+
+  function setDir(x, y){
+    // Compare against the last *queued* turn (or the committed direction if the queue is
+    // empty) — NOT some transient value. This is what makes simultaneous key presses safe:
+    // e.g. Up+Left while moving Right becomes Up then Left across two ticks instead of an
+    // instant 180° reversal into your own neck.
+    const last = inputQueue.length ? inputQueue[inputQueue.length - 1] : dir;
+    if(last.x === x && last.y === y) return;                         // ignore duplicates
+    if((last.x || last.y) && last.x === -x && last.y === -y) return; // reject 180° reversal
+    if(inputQueue.length < 2) inputQueue.push({ x, y });             // buffer at most two turns
+  }
+
+  function step(){
+    if(inputQueue.length) dir = inputQueue.shift(); // apply the next buffered turn
+    if(dir.x === 0 && dir.y === 0) return;
+
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    if(head.x < 0 || head.x >= GRID || head.y < 0 || head.y >= GRID){ endGame(); return; }
+    for(let i=0;i<snake.length-1;i++){
+      if(snake[i].x === head.x && snake[i].y === head.y){ endGame(); return; }
+    }
+
+    snake.unshift(head);
+
+    if(head.x === fruit.x && head.y === fruit.y){
+      score += FRUITS[fruit.type].points;
+      spawnFruit();
+      syncHud();
+    } else {
+      snake.pop();
+    }
+  }
+
+  // ---- Screen / state transitions ------------------------------------------
+  function show(el){ el.classList.remove('hidden'); }
+  function hide(el){ el.classList.add('hidden'); }
+
+  function toMenu(){
+    gameState = 'menu';
+    resetGame();
+    hide(els.pause); hide(els.gameover); show(els.menu);
+  }
+
+  function startGame(){
+    resetGame();
+    gameState = 'playing';
+    hide(els.menu); hide(els.pause); hide(els.gameover);
+  }
+
+  function togglePause(){
+    if(gameState === 'playing'){ gameState = 'paused'; show(els.pause); }
+    else if(gameState === 'paused'){ gameState = 'playing'; hide(els.pause); }
+  }
+
+  function endGame(won){
+    gameState = 'gameover';
+    const beat = score > highScore;
+    if(beat){
+      highScore = score;
+      localStorage.setItem('snakeHighScore', String(highScore));
+    }
+    els.goTitle.textContent = won ? 'YOU WIN!' : 'GAME OVER';
+    els.finalScore.textContent = score;
+    els.newHigh.style.display = beat && score > 0 ? 'inline-block' : 'none';
+    syncHud();
+    show(els.gameover);
+  }
+
+  function syncHud(){
+    els.score.textContent = score;
+    els.best.textContent = Math.max(score, highScore);
+    els.fruit.textContent = fruit ? FRUITS[fruit.type].points : '—';
+  }
+
+  // ---- Rendering (monochrome Game Boy LCD) ----------------------------------
+  function circle(cx, cy, r){ ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill(); }
+
+  function drawBoard(){
+    ctx.imageSmoothingEnabled = false;
+    ctx.fillStyle = GB.bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = GB.grid;
+    ctx.lineWidth = 1;
+    for(let i=1;i<GRID;i++){
+      ctx.beginPath(); ctx.moveTo(i*CELL+0.5, 0); ctx.lineTo(i*CELL+0.5, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, i*CELL+0.5); ctx.lineTo(canvas.width, i*CELL+0.5); ctx.stroke();
+    }
+  }
+
+  function drawFruit(){
+    if(!fruit) return;
+    const x = fruit.x*CELL, y = fruit.y*CELL;
+    const cx = x + CELL/2, cy = y + CELL/2;
+    const r = CELL*0.3;
+    ctx.fillStyle = GB.ink;
+    ctx.strokeStyle = GB.ink;
+    if(fruit.type === 0){          // Apple: round body + stem + leaf
+      circle(cx, cy+1, r);
+      ctx.fillRect(cx-1, cy-r-2, 2, 5);
+      ctx.fillRect(cx+2, cy-r-1, 5, 3);
+    } else if(fruit.type === 1){   // Banana: curved arc
+      ctx.lineCap = 'round';
+      ctx.lineWidth = CELL*0.16;
+      ctx.beginPath();
+      ctx.arc(cx, cy-3, r+3, Math.PI*0.15, Math.PI*0.9);
+      ctx.stroke();
+    } else {                        // Cherry: two berries + stems
+      circle(cx - r*0.5, cy + r*0.55, r*0.6);
+      circle(cx + r*0.5, cy + r*0.55, r*0.6);
+      ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx - r*0.5, cy + r*0.55); ctx.quadraticCurveTo(cx, y+4, cx, y+4);
+      ctx.moveTo(cx + r*0.5, cy + r*0.55); ctx.quadraticCurveTo(cx, y+4, cx, y+4);
+      ctx.stroke();
+    }
+  }
+
+  function drawSnake(){
+    for(let i = snake.length - 1; i >= 0; i--){
+      const s = snake[i];
+      const x = s.x * CELL, y = s.y * CELL;
+      ctx.fillStyle = GB.ink;
+      ctx.fillRect(x+1, y+1, CELL-2, CELL-2);       // blocky pixel segment
+      if(i === 0){
+        drawEyes(x, y);                              // head keeps light eyes
+      } else {
+        ctx.fillStyle = GB.bg;                       // hollow centre = retro segment
+        ctx.fillRect(x + CELL*0.37, y + CELL*0.37, CELL*0.26, CELL*0.26);
+      }
+    }
+  }
+
+  function drawEyes(x, y){
+    const fx = (dir.x || dir.y) ? dir.x : 1;
+    const fy = (dir.x || dir.y) ? dir.y : 0;
+    const cx = x + CELL/2, cy = y + CELL/2;
+    const off = CELL*0.16, spread = CELL*0.2;
+    const px = -fy, py = fx;
+    const sz = Math.max(2, CELL*0.16);
+    ctx.fillStyle = GB.bg;
+    for(const k of [-1, 1]){
+      const ex = cx + fx*off + px*spread*k;
+      const ey = cy + fy*off + py*spread*k;
+      ctx.fillRect(ex - sz/2, ey - sz/2, sz, sz);
+    }
+  }
+
+  function render(){
+    drawBoard();
+    drawFruit();
+    if(snake) drawSnake();
+  }
+
+  // ---- Main loop ------------------------------------------------------------
+  function loop(ts){
+    requestAnimationFrame(loop);
+    if(!lastTime) lastTime = ts;
+    const dt = ts - lastTime;
+    lastTime = ts;
+    if(gameState === 'playing'){
+      acc += dt;
+      const interval = currentInterval();
+      let guard = 0;
+      while(acc >= interval && guard++ < 8){ acc -= interval; step(); }
+    }
+    render();
+  }
+
+  // ---- Keyboard input -------------------------------------------------------
+  const KEYS = {
+    ArrowUp:[0,-1], KeyW:[0,-1],
+    ArrowDown:[0,1], KeyS:[0,1],
+    ArrowLeft:[-1,0], KeyA:[-1,0],
+    ArrowRight:[1,0], KeyD:[1,0],
+  };
+
+  window.addEventListener('keydown', function(e){
+    if(KEYS[e.code]){
+      if(gameState === 'playing'){ const [x,y] = KEYS[e.code]; setDir(x,y); }
+      e.preventDefault();
+      return;
+    }
+    switch(e.code){
+      case 'Space':
+      case 'KeyP':
+        if(gameState === 'playing' || gameState === 'paused') togglePause();
+        e.preventDefault();
+        break;
+      case 'Escape':
+        if(gameState === 'playing') togglePause();
+        break;
+      case 'Enter':
+        if(gameState === 'menu' || gameState === 'gameover') startGame();
+        break;
+    }
+  });
+
+  // ---- Difficulty picker ----------------------------------------------------
+  document.getElementById('diffPicker').addEventListener('click', function(e){
+    const btn = e.target.closest('button[data-diff]');
+    if(!btn) return;
+    difficulty = btn.dataset.diff;
+    localStorage.setItem('snakeDifficulty', difficulty);
+    for(const b of this.querySelectorAll('button')) b.classList.toggle('active', b === btn);
+  });
+  for(const b of document.querySelectorAll('#diffPicker button')){
+    b.classList.toggle('active', b.dataset.diff === difficulty);
+  }
+
+  // ---- On-screen buttons ----------------------------------------------------
+  function bind(id, fn){
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', function(){ fn(); el.blur(); });
+  }
+  function move(x, y){ if(gameState === 'playing') setDir(x, y); }
+
+  bind('playBtn', startGame);
+  bind('resumeBtn', togglePause);
+  bind('restartBtn', startGame);
+  bind('goMenuBtn', toMenu);
+  bind('pauseMenuBtn', toMenu);
+
+  bind('dpadUp',    () => move(0, -1));
+  bind('dpadDown',  () => move(0, 1));
+  bind('dpadLeft',  () => move(-1, 0));
+  bind('dpadRight', () => move(1, 0));
+  bind('btnA', () => { if(gameState === 'menu' || gameState === 'gameover') startGame(); });
+  bind('btnB', () => { if(gameState === 'playing' || gameState === 'paused') togglePause(); });
+  bind('btnStart', () => { if(gameState === 'menu' || gameState === 'gameover') startGame(); else togglePause(); });
+  bind('btnSelect', toMenu);
+
+  // ---- Boot -----------------------------------------------------------------
+  toMenu();
+  syncHud();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 #include <iostream>
-#include <conio.h>   // for _kbhit() and _getch()
-#include <windows.h> // for Sleep()
+#include <conio.h>
+#include <windows.h>
 #include <vector>
 #include <cstdlib>
 using namespace std;
